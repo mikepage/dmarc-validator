@@ -207,13 +207,11 @@ export default function DmarcValidator() {
                   key={index}
                   class="border border-gray-200 rounded-md p-4 bg-gray-50"
                 >
-                  <div class="flex items-start gap-4">
-                    <div class="font-mono text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                      {tag.tag}={tag.value}
-                    </div>
-                    <div class="text-sm text-gray-700 flex-1">
-                      {tag.description}
-                    </div>
+                  <div class="font-mono text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded mb-2 break-all">
+                    {tag.tag}={tag.value}
+                  </div>
+                  <div class="text-sm text-gray-700">
+                    {tag.description}
                   </div>
                 </div>
               ))}
