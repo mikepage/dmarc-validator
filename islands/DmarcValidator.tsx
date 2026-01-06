@@ -14,7 +14,13 @@ interface DmarcResult {
   policy: string;
   policyDescription: string;
   queryTime: number;
+  resolver: string;
 }
+
+const Resolvers = [
+  { value: "google", label: "Google DNS (DoH)" },
+  { value: "cloudflare", label: "Cloudflare DNS (DoH)" },
+];
 
 function parseHash(hash: string): string | null {
   const match = hash.match(/^#(.+?)\/?\s*$/);
@@ -24,14 +30,15 @@ function parseHash(hash: string): string | null {
 
 function updateHash(domain: string) {
   if (domain) {
-    window.history.replaceState(null, "", `#${domain}`);
+    globalThis.history.replaceState(null, "", `#${domain}`);
   } else {
-    window.history.replaceState(null, "", window.location.pathname);
+    globalThis.history.replaceState(null, "", globalThis.location.pathname);
   }
 }
 
 export default function DmarcValidator() {
   const domain = useSignal("");
+  const resolver = useSignal("google");
   const isLoading = useSignal(false);
   const result = useSignal<DmarcResult | null>(null);
   const error = useSignal<string | null>(null);
@@ -50,7 +57,10 @@ export default function DmarcValidator() {
     isLoading.value = true;
 
     try {
-      const params = new URLSearchParams({ domain: domainValue });
+      const params = new URLSearchParams({
+        domain: domainValue,
+        resolver: resolver.value,
+      });
       const response = await fetch(`/api/dmarc?${params}`);
       const data = await response.json();
 
@@ -69,6 +79,7 @@ export default function DmarcValidator() {
 
   const handleClear = () => {
     domain.value = "";
+    resolver.value = "google";
     result.value = null;
     error.value = null;
     updateHash("");
@@ -76,7 +87,7 @@ export default function DmarcValidator() {
 
   useEffect(() => {
     const handleHashChange = () => {
-      const parsed = parseHash(window.location.hash);
+      const parsed = parseHash(globalThis.location.hash);
       if (parsed) {
         domain.value = parsed;
         if (!initialLoadDone.value) {
@@ -90,8 +101,8 @@ export default function DmarcValidator() {
 
     handleHashChange();
 
-    window.addEventListener("hashchange", handleHashChange);
-    return () => window.removeEventListener("hashchange", handleHashChange);
+    globalThis.addEventListener("hashchange", handleHashChange);
+    return () => globalThis.removeEventListener("hashchange", handleHashChange);
   }, []);
 
   useEffect(() => {
@@ -119,27 +130,49 @@ export default function DmarcValidator() {
       <div class="bg-white rounded-lg shadow p-6 mb-6">
         <h2 class="text-lg font-semibold text-gray-800 mb-4">DMARC Lookup</h2>
 
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 mb-1">
-            Domain Name
-          </label>
-          <input
-            type="text"
-            value={domain.value}
-            onInput={(e) =>
-              (domain.value = (e.target as HTMLInputElement).value)
-            }
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleLookup();
-            }}
-            placeholder="example.com"
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
-          />
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              Domain Name
+            </label>
+            <input
+              type="text"
+              value={domain.value}
+              onInput={(
+                e,
+              ) => (domain.value = (e.target as HTMLInputElement).value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleLookup();
+              }}
+              placeholder="example.com"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              DNS Resolver
+            </label>
+            <select
+              value={resolver.value}
+              onChange={(
+                e,
+              ) => (resolver.value = (e.target as HTMLSelectElement).value)}
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              {Resolvers.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Action Buttons */}
         <div class="flex flex-wrap gap-3">
           <button
+            type="button"
             onClick={handleLookup}
             disabled={!domain.value.trim() || isLoading.value}
             class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
@@ -147,6 +180,7 @@ export default function DmarcValidator() {
             {isLoading.value ? "Looking up..." : "Lookup DMARC"}
           </button>
           <button
+            type="button"
             onClick={handleClear}
             class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
           >
@@ -172,17 +206,20 @@ export default function DmarcValidator() {
             </h3>
 
             <div
-              class={`inline-block px-4 py-2 rounded-md border font-medium mb-4 ${getPolicyColor(
-                result.value.policy
-              )}`}
+              class={`inline-block px-4 py-2 rounded-md border font-medium mb-4 ${
+                getPolicyColor(
+                  result.value.policy,
+                )
+              }`}
             >
               Policy: {result.value.policy.toUpperCase()}
             </div>
 
             <p class="text-gray-700 mb-4">{result.value.policyDescription}</p>
 
-            <div class="text-sm text-gray-500">
-              Query Time: {result.value.queryTime}ms
+            <div class="flex gap-4 text-sm text-gray-500">
+              <span>Resolver: {result.value.resolver}</span>
+              <span>Query Time: {result.value.queryTime}ms</span>
             </div>
           </div>
 
